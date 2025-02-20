@@ -49,6 +49,9 @@ while cv2.getWindowProperty('frame', 0) >= 0:
             elif thumb_middle_dist < threshold:  
                 gesture = "Erase"
 
+            x, y = int(thumb_tip.x * W), int(thumb_tip.y * H)
+            cv2.circle(frame, (x, y), 5, (0, 0, 255), -1)
+
             # mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
     cv2.putText(frame, f"Gesture: {gesture}", (50, 50),
