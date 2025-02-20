@@ -51,7 +51,7 @@ while cv2.getWindowProperty('frame', 0) >= 0:
                 new_gesture = "Erase"
 
             x, y = int(thumb_tip.x * W), int(thumb_tip.y * H)
-            cv2.circle(frame, (x, y), 5, (0, 0, 255), -1)
+            cv2.circle(frame, (x, y), 10, (0, 255, 0), -1)
 
             mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
