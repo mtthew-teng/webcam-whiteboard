@@ -32,8 +32,7 @@ while cap.isOpened():
 
                 cv2.putText(frame, f"Index Tip: ({x}, {y}, {z:.3f})", (x + 20, y - 20),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-                
-            mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+
 
     cv2.imshow("Right Index Fingertip Tracking", frame)
     
