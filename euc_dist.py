@@ -15,6 +15,7 @@ cv2.setWindowProperty('frame', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_GUI_EXPANDED 
 
 gesture_buffer = deque(maxlen=10)
 stable_gesture = "Nothing"
+thumb_positions = deque(maxlen=5)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--hand", default="Right", type=str, help="Specify which hand to track: Right or Left")
@@ -22,7 +23,6 @@ args = parser.parse_args()
 
 ret_, frame_ = cap.read()
 H, W, _ = frame_.shape
-white_frame = np.ones((H, W, 3), dtype=np.uint8) * 255
 
 def calculate_3d_distance(landmark1, landmark2, W, H):
     x1, y1, z1 = int(landmark1.x * W), int(landmark1.y * H), landmark1.z
@@ -38,7 +38,7 @@ while cv2.getWindowProperty('frame', 0) >= 0:
     frame = cv2.flip(frame, 1)
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = hands.process(frame_rgb)
-
+    white_frame = np.ones((H, W, 3), dtype=np.uint8) * 255
     new_gesture = "Nothing"
 
     if results.multi_hand_landmarks and results.multi_handedness:
@@ -49,26 +49,41 @@ while cv2.getWindowProperty('frame', 0) >= 0:
             thumb_tip = hand_landmarks.landmark[4]
             index_tip = hand_landmarks.landmark[8]
             middle_tip = hand_landmarks.landmark[12]
+            ring_tip = hand_landmarks.landmark[16]
+            pinky_tip = hand_landmarks.landmark[20]
 
             thumb_index_dist = calculate_3d_distance(thumb_tip, index_tip, W, H)
             thumb_middle_dist = calculate_3d_distance(thumb_tip, middle_tip, W, H)
+            thumb_ring_dist = calculate_3d_distance(thumb_tip, ring_tip, W, H)
+            thumb_pinky_dist = calculate_3d_distance(thumb_tip, pinky_tip, W, H)
 
-            threshold = 50
+            threshold = 30
 
-            if thumb_index_dist < threshold and thumb_middle_dist < threshold:
+            if thumb_index_dist < threshold and thumb_middle_dist < threshold and thumb_ring_dist < threshold and thumb_pinky_dist < threshold:
                 new_gesture = "Nothing"
             elif thumb_index_dist < threshold:
                 new_gesture = "Draw"
             elif thumb_middle_dist < threshold:
                 new_gesture = "Erase"
-            
-            # mp_drawing.draw_landmarks(white_frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+            elif thumb_ring_dist < threshold:
+                new_gesture = "Color Switch Forward"
+            elif thumb_pinky_dist < threshold:
+                new_gesture = "Color Switch Backward"
 
             thumb_x, thumb_y = int(thumb_tip.x * W), int(thumb_tip.y * H)
-            cv2.circle(white_frame, (thumb_x, thumb_y), 5, (0, 255, 0), -1)
+            thumb_positions.append((thumb_x, thumb_y))
+            avg_thumb_x = int(np.mean([pos[0] for pos in thumb_positions]))
+            avg_thumb_y = int(np.mean([pos[1] for pos in thumb_positions]))
             
-            # cv2.putText(white_frame, stable_gesture, (thumb_x, thumb_y + 50),
-            #             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 1, cv2.LINE_AA)
+            cv2.circle(white_frame, (avg_thumb_x, avg_thumb_y), 5, (0, 255, 0), -1)
+            
+            mp_drawing.draw_landmarks(white_frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+
+            # thumb_x, thumb_y = int(thumb_tip.x * W), int(thumb_tip.y * H)
+            # cv2.circle(frame, (thumb_x, thumb_y), 5, (0, 255, 0), -1)
+            
+            cv2.putText(white_frame, stable_gesture, (thumb_x, thumb_y + 50),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 1, cv2.LINE_AA)
 
     gesture_buffer.append(new_gesture)
     if gesture_buffer.count(new_gesture) > 7:
