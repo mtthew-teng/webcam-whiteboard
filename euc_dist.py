@@ -2,6 +2,7 @@ import cv2
 import mediapipe as mp
 import numpy as np
 from collections import deque
+import argparse
 
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
@@ -9,10 +10,19 @@ mp_drawing_styles = mp.solutions.drawing_styles
 hands = mp_hands.Hands(static_image_mode=False, min_detection_confidence=0.3)
 
 cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-cv2.namedWindow("frame", cv2.WINDOW_FULLSCREEN)
+cv2.namedWindow('frame', cv2.WND_PROP_FULLSCREEN)
+cv2.setWindowProperty('frame', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_GUI_EXPANDED )
 
 gesture_buffer = deque(maxlen=10)
 stable_gesture = "Nothing"
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--hand", default="Right", type=str, help="Specify which hand to track: Right or Left")
+args = parser.parse_args()
+
+ret_, frame_ = cap.read()
+H, W, _ = frame_.shape
+white_frame = np.ones((H, W, 3), dtype=np.uint8) * 255
 
 def calculate_3d_distance(landmark1, landmark2, W, H):
     x1, y1, z1 = int(landmark1.x * W), int(landmark1.y * H), landmark1.z
@@ -26,14 +36,16 @@ while cv2.getWindowProperty('frame', 0) >= 0:
         break
 
     frame = cv2.flip(frame, 1)
-    H, W, _ = frame.shape
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = hands.process(frame_rgb)
 
     new_gesture = "Nothing"
 
-    if results.multi_hand_landmarks:
-        for hand_landmarks in results.multi_hand_landmarks:
+    if results.multi_hand_landmarks and results.multi_handedness:
+        for hand_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_handedness):
+            if handedness.classification[0].label != args.hand:
+                continue
+
             thumb_tip = hand_landmarks.landmark[4]
             index_tip = hand_landmarks.landmark[8]
             middle_tip = hand_landmarks.landmark[12]
@@ -49,22 +61,22 @@ while cv2.getWindowProperty('frame', 0) >= 0:
                 new_gesture = "Draw"
             elif thumb_middle_dist < threshold:
                 new_gesture = "Erase"
+            
+            # mp_drawing.draw_landmarks(white_frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
-            x, y = int(thumb_tip.x * W), int(thumb_tip.y * H)
-            cv2.circle(frame, (x, y), 10, (0, 255, 0), -1)
-
-            mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+            thumb_x, thumb_y = int(thumb_tip.x * W), int(thumb_tip.y * H)
+            cv2.circle(white_frame, (thumb_x, thumb_y), 5, (0, 255, 0), -1)
+            
+            # cv2.putText(white_frame, stable_gesture, (thumb_x, thumb_y + 50),
+            #             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 1, cv2.LINE_AA)
 
     gesture_buffer.append(new_gesture)
     if gesture_buffer.count(new_gesture) > 7:
         stable_gesture = new_gesture
 
-    cv2.putText(frame, f"Gesture: {stable_gesture}", (50, 50),
-                cv2.FONT_HERSHEY_SIMPLEX, 1.3, (0, 255, 0), 3, cv2.LINE_AA)
+    cv2.imshow('frame', white_frame)
 
-    cv2.imshow('frame', frame)
-
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    if cv2.waitKey(1) & 0xFF == 27:
         break
 
 cap.release()
